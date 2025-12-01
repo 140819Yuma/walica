@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean Split</title>
+    <style>
+        :root {
+            --bg: #1a1a1a;
+            --card: #2d2d2d;
+            --text: #e0e0e0;
+            --accent: #4caf50;
+            --danger: #ff5252;
+            --input-bg: #404040;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        h1, h2 { margin-top: 0; text-align: center; }
+        .container { max-width: 600px; margin: 0 auto; }
+        
+        /* Input Areas */
+        .card {
+            background: var(--card);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: var(--input-bg);
+            border: 1px solid #555;
+            color: white;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn-primary { background-color: var(--accent); color: white; }
+        .btn-danger { background-color: var(--danger); color: white; width: auto; padding: 5px 10px; font-size: 12px; margin-left: 10px;}
+        
+        /* Lists */
+        ul { list-style: none; padding: 0; }
+        li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #444;
+        }
+        li:last-child { border-bottom: none; }
+
+        /* Result Area */
+        #result-area {
+            background: #2e3b2f;
+            border: 1px solid var(--accent);
+        }
+        .transfer-arrow { color: var(--accent); font-weight: bold; margin: 0 5px; }
+        .money { font-weight: bold; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>💸 Clean Split</h1>
+
+    <div class="card">
+        <h2>1. メンバー</h2>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="newMemberName" placeholder="名前 (例: Aさん)">
+            <button onclick="addMember()" class="btn-primary" style="width: 30%;">追加</button>
+        </div>
+        <ul id="memberList"></ul>
+    </div>
+
+    <div class="card" id="expenseCard" style="display:none;">
+        <h2>2. 支払い記録</h2>
+        <input type="text" id="expenseTitle" placeholder="用途 (例: 居酒屋)">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <select id="payerSelect"></select>
+            <input type="number" id="expenseAmount" placeholder="金額 (円)">
+        </div>
+        <button onclick="addExpense()" class="btn-primary">支払いを追加</button>
+        <ul id="expenseList"></ul>
+    </div>
+
+    <div class="card" id="resultCard" style="display:none;">
+        <h2>📊 精算結果</h2>
+        <p style="text-align: center; font-size: 0.9em; opacity: 0.8;">合計: <span id="totalAmount">0</span>円 (1人あたり: <span id="perPerson">0</span>円)</p>
+        <div id="resultList"></div>
+    </div>
+</div>
+
+<script>
+    let members = [];
+    let expenses = [];
+
+    function addMember() {
+        const nameInput = document.getElementById('newMemberName');
+        const name = nameInput.value.trim();
+        if (!name) return;
+        if (members.includes(name)) { alert('その名前は既に登録されています'); return; }
+
+        members.push(name);
+        nameInput.value = '';
+        renderMembers();
+        updatePayerSelect();
+        
+        // 2人以上になったら支払い入力エリアを表示
+        if (members.length >= 2) {
+            document.getElementById('expenseCard').style.display = 'block';
+        }
+        calculate();
+    }
+
+    function removeMember(index) {
+        members.splice(index, 1);
+        renderMembers();
+        updatePayerSelect();
+        calculate();
+    }
+
+    function renderMembers() {
+        const list = document.getElementById('memberList');
+        list.innerHTML = members.map((m, i) => `
+            <li>${m} <button onclick="removeMember(${i})" class="btn-danger">削除</button></li>
+        `).join('');
+    }
+
+    function updatePayerSelect() {
+        const select = document.getElementById('payerSelect');
+        select.innerHTML = members.map(m => `<option value="${m}">${m}が払った</option>`).join('');
+    }
+
+    function addExpense() {
+        const title = document.getElementById('expenseTitle').value || '支払い';
+        const payer = document.getElementById('payerSelect').value;
+        const amount = parseInt(document.getElementById('expenseAmount').value);
+
+        if (!payer || isNaN(amount) || amount <= 0) return;
+
+        expenses.push({ title, payer, amount });
+        
+        // 入力欄クリア
+        document.getElementById('expenseTitle').value = '';
+        document.getElementById('expenseAmount').value = '';
+        
+        renderExpenses();
+        calculate();
+    }
+
+    function removeExpense(index) {
+        expenses.splice(index, 1);
+        renderExpenses();
+        calculate();
+    }
+
+    function renderExpenses() {
+        const list = document.getElementById('expenseList');
+        list.innerHTML = expenses.map((e, i) => `
+            <li>
+                <span>${e.title}: <b>${e.payer}</b> (${e.amount.toLocaleString()}円)</span>
+                <button onclick="removeExpense(${i})" class="btn-danger">×</button>
+            </li>
+        `).join('');
+        
+        if (expenses.length > 0) {
+            document.getElementById('resultCard').style.display = 'block';
+        } else {
+            document.getElementById('resultCard').style.display = 'none';
+        }
+    }
+
+    function calculate() {
+        if (members.length === 0 || expenses.length === 0) return;
+
+        let total = 0;
+        let balance = {};
+        members.forEach(m => balance[m] = 0);
+
+        // 支払い合計と、各個人の払い過ぎ・払い不足を計算
+        expenses.forEach(e => {
+            total += e.amount;
+            if (balance[e.payer] !== undefined) {
+                balance[e.payer] += e.amount;
+            }
+        });
+
+        const perPerson = Math.floor(total / members.length); // 端数は切り捨てて調整
+        document.getElementById('totalAmount').textContent = total.toLocaleString();
+        document.getElementById('perPerson').textContent = perPerson.toLocaleString();
+
+        // 差額を計算 (プラスなら受け取る側、マイナスなら払う側)
+        let debtors = [];
+        let creditors = [];
+
+        for (let m of members) {
+            let diff = balance[m] - perPerson;
+            if (diff < -1) debtors.push({ name: m, amount: diff }); // 1円程度の誤差は許容
+            if (diff > 1) creditors.push({ name: m, amount: diff });
+        }
+
+        // 精算ロジック (最小回数での移動を目指す簡易版)
+        let transactions = [];
+        debtors.sort((a, b) => a.amount - b.amount); // 借金が多い順
+        creditors.sort((a, b) => b.amount - a.amount); // 債権が多い順
+
+        let i = 0; // debtor index
+        let j = 0; // creditor index
+
+        while (i < debtors.length && j < creditors.length) {
+            let debtor = debtors[i];
+            let creditor = creditors[j];
+            
+            // 移動させる金額（借金の絶対値 と 債権 の小さい方）
+            let amount = Math.min(Math.abs(debtor.amount), creditor.amount);
+            
+            transactions.push({ from: debtor.name, to: creditor.name, amount: amount });
+
+            debtor.amount += amount;
+            creditor.amount -= amount;
+
+            if (Math.abs(debtor.amount) < 1) i++;
+            if (creditor.amount < 1) j++;
+        }
+
+        // 結果表示
+        const resultList = document.getElementById('resultList');
+        if (transactions.length === 0) {
+            resultList.innerHTML = '<p style="text-align:center;">精算不要です！</p>';
+        } else {
+            resultList.innerHTML = transactions.map(t => `
+                <div style="background:#404040; padding:10px; margin-bottom:5px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>${t.from}</span>
+                    <span class="transfer-arrow">→ ${t.amount.toLocaleString()}円 →</span>
+                    <span>${t.to}</span>
+                </div>
+            `).join('');
+        }
+    }
+</script>
+
+</body>
+</html>
